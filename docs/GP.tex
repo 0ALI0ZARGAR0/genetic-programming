@@ -1,0 +1,158 @@
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\title{Genetic Programming for Network Anomaly Detection on UNSW-NB15}
+\author{Ali Zargar, Herbod Pourali, Shadmehr Salehi, Sina Asghari}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report details the implementation of a Genetic Programming (GP) system using the \texttt{gplearn} library for network anomaly detection on the UNSW-NB15 dataset. The focus is on the specific configuration, preprocessing steps, evaluation metrics, and threshold optimization techniques employed in the accompanying \texttt{GP\_simple.py} script. The methodology assumes familiarity with fundamental GP concepts and aims to provide insights into the practical application for this specific cybersecurity task.
+\end{abstract}
+
+\section{Introduction}
+Network Intrusion Detection Systems (NIDS) are critical components of cybersecurity infrastructure. Machine learning techniques, including Genetic Programming, offer promising approaches for developing adaptive and effective NIDS. GP, an evolutionary algorithm inspired by biological evolution, automatically evolves computer programs (often represented as expression trees) to perform a desired task. In this context, the task is to classify network traffic from the UNSW-NB15 dataset \cite{unsw_nb15} as either 'Normal' (label 0) or 'Anomaly' (label 1).
+
+The \texttt{GP\_simple.py} script leverages the \texttt{gplearn} library \cite{gplearn} to implement a \texttt{SymbolicClassifier}. This report outlines the key implementation details, particularly the data handling, GP hyperparameter setup, and evaluation strategy tailored for anomaly detection. A compatibility patch for specific \texttt{scikit-learn} versions is also noted.
+
+\section{Methodology}
+
+\subsection{Data Preprocessing}
+The UNSW-NB15 dataset requires several preprocessing steps before being suitable for the GP model:
+
+\begin{enumerate}
+    \item \textbf{Data Loading:} The predefined training (\texttt{UNSW\_NB15\_training-set.csv}) and testing (\texttt{UNSW\_NB15\_testing-set.csv}) sets are loaded using \texttt{pandas}.
+    \item \textbf{Feature Selection:} Non-predictive columns (\texttt{'id'}, \texttt{'attack\_cat'}) and the target variable (\texttt{'label'}) are explicitly removed from the feature set.
+    \item \textbf{Target Variable Handling:} The \texttt{'label'} column is explicitly cast to integer type. Although not strictly necessary in the provided datasets, robust handling for potential NaNs in target variables (e.g., dropping corresponding rows) is often recommended in practice but omitted here for simplicity based on dataset characteristics.
+    \item \textbf{Missing Value Imputation:}
+        \begin{itemize}
+            \item Numeric Features: Missing values are imputed using the median strategy via \texttt{sklearn.impute.SimpleImputer}.
+            \item Categorical Features: Missing values are imputed using the most frequent strategy via \texttt{sklearn.impute.SimpleImputer}.
+        \end{itemize}
+    \item \textbf{Categorical Feature Encoding:} Categorical features identified by their \texttt{dtype} are transformed using \texttt{sklearn.preprocessing.OneHotEncoder}. \texttt{handle\_unknown='ignore'} prevents errors during the transformation of the test set if unseen categories appear, and \texttt{sparse\_output=False} generates a dense numpy array suitable for \texttt{gplearn}.
+    \item \textbf{Numerical Feature Scaling:} Numerical features are scaled using \texttt{sklearn.preprocessing.StandardScaler} to have zero mean and unit variance. This prevents features with larger ranges from dominating the GP fitness evaluation.
+    \item \textbf{Pipeline Construction:} A \texttt{sklearn.pipeline.Pipeline} is used for numeric and categorical transformations, combined using \texttt{sklearn.compose.ColumnTransformer}. This ensures consistent processing of training and testing data.
+    \item \textbf{Final Data Sanitization:} After preprocessing, \texttt{numpy.nan\_to\_num} is applied as a safeguard to replace any residual \texttt{NaN} values with 0.0 and infinities (\texttt{posinf}, \texttt{neginf}) with large finite numbers (\(10^{10}\), \(-10^{10}\)). This enhances robustness before feeding data into the GP algorithm.
+\end{enumerate}
+
+\subsection{Genetic Programming Setup}
+The core of the anomaly detection system is the \texttt{gplearn.genetic.SymbolicClassifier}. Its configuration is crucial for effective evolution:
+
+\begin{itemize}
+    \item \textbf{Population Size (\texttt{population\_size=1000}):} Defines the number of programs maintained in each generation.
+    \item \textbf{Generations (\texttt{generations=20}):} The number of evolutionary cycles.
+    \item \textbf{Stopping Criteria (\texttt{stopping\_criteria=0.001}):} Evolution halts if the fitness of the best individual reaches this threshold (log loss in this case). A low value effectively ensures running for the full number of generations unless near-perfect fitness is achieved.
+    \item \textbf{Genetic Operators:}
+        \begin{itemize}
+            \item \texttt{p\_crossover=0.7}: Probability of performing crossover.
+            \item \texttt{p\_subtree\_mutation=0.1}: Probability of subtree mutation.
+            \item \texttt{p\_hoist\_mutation=0.05}: Probability of hoist mutation (replacing a subtree with one of its own sub-subtrees).
+            \item \texttt{p\_point\_mutation=0.1}: Probability of point mutation (replacing a node with a different compatible node). The sum of these probabilities must be \(\le 1.0\).
+        \end{itemize}
+    \item \textbf{Function Set (\texttt{function\_set=[...]})} The set of primitives used to build programs. Includes basic arithmetic (\texttt{add}, \texttt{sub}, \texttt{mul}, \texttt{div}) and mathematical functions (\texttt{sqrt}, \texttt{log}, \texttt{abs}, \texttt{neg}, \texttt{max}, \texttt{min}). The choice of functions influences the complexity and nature of solutions the GP can discover.
+    \item \textbf{Fitness Metric (\texttt{metric='log loss'}):} The function minimized during evolution. Log loss is a standard metric for probabilistic classification.
+    \item \textbf{Selection (\texttt{tournament\_size=20}):} Tournament selection is used, where 20 individuals compete, and the fittest proceeds to the next generation (or is selected for genetic operations).
+    \item \textbf{Initialization (\texttt{init\_depth=(2, 6)}, \texttt{init\_method='half and half'}):} Uses the ramped half-and-half method for initial population generation, balancing tree depth and shape.
+    \item \textbf{Parsimony (\texttt{parsimony\_coefficient=0.01}):} Applies a penalty for program complexity (size), encouraging simpler and potentially more generalizable solutions by mitigating bloat.
+    \item \textbf{Class Weight (\texttt{class\_weight='balanced'}):} Crucial for imbalanced datasets like UNSW-NB15. This automatically adjusts weights inversely proportional to class frequencies, giving more importance to the minority class during fitness evaluation.
+    \item \textbf{Parallelism (\texttt{n\_jobs=-1}):} Utilizes all available CPU cores for parallel fitness evaluation, significantly speeding up training.
+    \item \textbf{Reproducibility (\texttt{random\_state=42}):} Ensures consistent results across runs.
+\end{itemize}
+A compatibility patch (\texttt{\_\_sklearn\_tags\_\_}) is applied to \texttt{sklearn.base.BaseEstimator} prior to importing \texttt{gplearn} to resolve issues with certain \texttt{scikit-learn} versions.
+
+\subsection{Evaluation Strategy}
+Given the anomaly detection context, evaluation focuses on the model's ability to correctly identify the 'Anomaly' class (label 1).
+
+\begin{itemize}
+    \item \textbf{Metrics:} Standard metrics are calculated using \texttt{sklearn.metrics}:
+        \begin{itemize}
+            \item Accuracy (\texttt{accuracy\_score})
+            \item Precision (\texttt{precision\_score(average='binary')}) - Focus on the positive (Anomaly) class.
+            \item Recall (\texttt{recall\_score(average='binary')}) - Focus on the positive (Anomaly) class.
+            \item F1-Score (\texttt{f1\_score(average='binary')}) - Harmonic mean of Precision and Recall for the positive class.
+            \item ROC AUC (\texttt{roc\_auc\_score}) - Area under the Receiver Operating Characteristic curve, measuring separability based on predicted probabilities.
+        \end{itemize}
+    \item \textbf{Confusion Matrix:} Visualized using \texttt{seaborn.heatmap} to show True Positives, True Negatives, False Positives, and False Negatives.
+    \item \textbf{Classification Report:} Provides per-class precision, recall, and F1-score (\texttt{classification\_report}).
+    \item \textbf{Threshold Optimization:} Since \texttt{SymbolicClassifier.predict} uses a default 0.5 probability threshold, performance (particularly F1-score for the anomaly class) can often be improved by tuning this threshold. The script iterates through thresholds from 0.1 to 0.9, calculates the binary F1-score at each, and identifies the threshold yielding the highest F1-score. Final performance metrics are reported using this optimal threshold.
+\end{itemize}
+
+\section{Results}
+The script trains the GP model on the preprocessed training data and evaluates it on the preprocessed test data. Key outputs include:
+\begin{itemize}
+    \item Initial performance metrics using the default 0.5 threshold.
+    \item The confusion matrix visualization (\texttt{anomaly\_detection\_confusion\_matrix.png}).
+    \item The detailed classification report.
+    \item The symbolic representation of the best-evolved program (\texttt{gp\_classifier.\_program}), saved to \texttt{anomaly\_detection\_program.txt}.
+    \item The results of the threshold optimization process, identifying the optimal threshold based on F1-score.
+    \item Final performance metrics calculated using the optimal threshold.
+\end{itemize}
+The specific numeric results depend on the execution environment and dataset specifics but are clearly printed in the script's output, focusing on the metrics relevant to anomaly detection performance.
+
+\section{Conclusion}
+The \texttt{GP\_simple.py} script demonstrates a focused application of Genetic Programming via \texttt{gplearn} for network anomaly detection on the UNSW-NB15 dataset. It incorporates essential preprocessing steps, utilizes GP hyperparameters suitable for the task (including balanced class weighting), and employs a relevant evaluation strategy with threshold optimization to maximize the F1-score for anomaly identification. The output includes standard performance metrics and the interpretable symbolic program evolved by the GP process.
+
+\begin{thebibliography}{9}
+    \bibitem{unsw_nb15} Moustafa, Nour, and Jill Slay. "UNSW-NB15: a comprehensive data set for network intrusion detection systems (UNSW-NB15 network data set)." \textit{Military Communications and Information Systems Conference (MilCIS), 2015}. IEEE, 2015.
+    \bibitem{gplearn} Stephens, Trevor. gplearn: Genetic Programming in Python, \url{https://github.com/trevorstephens/gplearn}.
+\end{thebibliography}
+
+% Optional Appendix for Code Snippet
+% \appendix
+% \section{Core GP Configuration}
+% \begin{lstlisting}[language=Python]
+% gp_classifier = SymbolicClassifier(
+%     population_size=1000,
+%     generations=20,
+%     stopping_criteria=0.001,
+%     p_crossover=0.7,
+%     p_subtree_mutation=0.1,
+%     p_hoist_mutation=0.05,
+%     p_point_mutation=0.1,
+%     function_set=['add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'neg', 'max', 'min'],
+%     metric='log loss',
+%     tournament_size=20,
+%     init_depth=(2, 6),
+%     init_method='half and half',
+%     parsimony_coefficient=0.01,
+%     class_weight='balanced',
+%     n_jobs=-1,
+%     verbose=1,
+%     random_state=42
+% )
+% \end{lstlisting}
+
+\end{document}
