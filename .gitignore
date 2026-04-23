@@ -145,14 +145,6 @@ data/**/*.h5
 data/**/*.pkl
 data/**/*.joblib
 
-# Results and visualizations
-results/*.png
-results/*.jpg
-results/*.jpeg
-results/*.pdf
-results/*.svg
-results/*.html
-
 # LaTeX build artifacts
 *.aux
 *.fdb_latexmk
