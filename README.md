@@ -50,10 +50,13 @@ python src/anomaly_detector.py
 
 ### Performance Metrics
 
-![Confusion Matrix](results/confusion_matrix.png)
-![ROC Curve](results/roc_curve.png)
-![Precision-Recall Curve](results/precision_recall_curve.png)
-![Feature Importances](results/feature_importances.png)
+<div align="center">
+
+|                 Confusion Matrix                  |              ROC Curve              |                    Precision-Recall Curve                     |                   Feature Importances                   |
+| :-----------------------------------------------: | :---------------------------------: | :-----------------------------------------------------------: | :-----------------------------------------------------: |
+| ![Confusion Matrix](results/confusion_matrix.png) | ![ROC Curve](results/roc_curve.png) | ![Precision-Recall Curve](results/precision_recall_curve.png) | ![Feature Importances](results/feature_importances.png) |
+
+</div>
 
 ## Project Structure
 
