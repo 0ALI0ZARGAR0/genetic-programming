@@ -17,6 +17,7 @@ The core approach employs Genetic Programming (GP) using the gplearn library. Ke
 - **gplearn**: Genetic Programming library for symbolic regression and classification
 - **scikit-learn**: Machine learning library for preprocessing and evaluation metrics
 - **pandas & numpy**: Data manipulation and numerical computing
+- **scipy**: Sparse matrix handling and numerical utilities
 - **matplotlib & seaborn**: Data visualization and plotting
 
 ## Features
@@ -24,7 +25,7 @@ The core approach employs Genetic Programming (GP) using the gplearn library. Ke
 - Trains GP models on network traffic data for anomaly detection
 - Evaluates model performance using accuracy, F1-score, ROC-AUC, and precision-recall metrics
 - Provides standalone anomaly detection function with configurable probability threshold
-- Generates visualizations including confusion matrix, ROC curve, and feature importance plots
+- Generates visualizations including confusion matrix, ROC curve, and precision-recall curve
 - Supports preprocessing of categorical and numerical features from UNSW-NB15 dataset
 
 ## Quick Start
@@ -34,16 +35,17 @@ Clone the repository, install dependencies, and train the model:
 ```bash
 git clone https://github.com/0ALI0ZARGAR0/genetic-programming.git
 cd genetic_programming
-pip install gplearn scikit-learn pandas numpy matplotlib seaborn
+pip install gplearn scikit-learn pandas numpy scipy matplotlib seaborn
 
 # Train the enhanced model
-python src/GP.py
+cd src
+python GP.py
 
 # Or train the simplified model
-python src/GP_simple.py
+python GP_simple.py
 
 # Use the trained anomaly detector
-python src/anomaly_detector.py
+python anomaly_detector.py
 ```
 
 ## Results
@@ -74,6 +76,7 @@ genetic_programming/
 │   └── UNSW_NB15/         # UNSW-NB15 dataset files
 ├── models/                # Trained model files
 ├── results/               # Evaluation results and visualizations
+├── docs/                  # Project report and LaTeX source
 └── README.md
 ```
 
@@ -88,23 +91,29 @@ genetic_programming/
 ### Training Models
 
 ```python
-# Enhanced model with comprehensive features
-exec(open('src/GP.py').read())
+# Run from the repository root:
+# cd src && python GP.py
 
-# Simplified model for quick training
-exec(open('src/GP_simple.py').read())
+# Or:
+# cd src && python GP_simple.py
 ```
 
 ### Anomaly Detection
 
 ```python
-from src.anomaly_detector import detect_anomaly
+import os
+import sys
+
+os.chdir("src")
+sys.path.insert(0, ".")
+
+from anomaly_detector import detect_anomaly
 
 # Example network traffic features
 sample = {
    'dur': 0.121478,
    'proto': 'tcp',
-   # Add all required features here
+   # Add the remaining feature fields expected by the trained model
 }
 
 is_anomaly, probability = detect_anomaly(sample)
